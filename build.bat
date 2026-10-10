@@ -1,6 +1,6 @@
 @echo off
 chcp 65001 >nul
-echo === SetSystemTime Go 构建脚本 ===
+echo === clock-tweak Go 构建脚本 ===
 
 cd /d "%~dp0"
 
@@ -32,7 +32,7 @@ echo [3/4] 编译程序...
 set GOOS=windows
 set GOARCH=amd64
 set CGO_ENABLED=0
-go build -ldflags="-s -w -H windowsgui" -o SetSystemTime.exe .
+go build -ldflags="-s -w -H windowsgui" -o clock-tweak.exe .
 if errorlevel 1 (
     echo 编译失败！
     pause
@@ -44,11 +44,11 @@ if exist rsrc_windows_amd64.syso del rsrc_windows_amd64.syso
 if exist rsrc_windows_386.syso del rsrc_windows_386.syso
 if exist rsrc_windows_arm64.syso del rsrc_windows_arm64.syso
 
-for %%A in (SetSystemTime.exe) do echo 文件大小: %%~zA bytes
+for %%A in (clock-tweak.exe) do echo 文件大小: %%~zA bytes
 
 echo.
 echo === 构建成功！===
-echo 输出文件: SetSystemTime.exe
+echo 输出文件: clock-tweak.exe
 echo.
 echo 特性:
 echo   - 双击自动请求管理员权限 (UAC)

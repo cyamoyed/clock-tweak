@@ -673,7 +673,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	className := syscall.StringToUTF16Ptr("SSTClass")
+	className := syscall.StringToUTF16Ptr("ClockTweakClass")
 	windowTitle := syscall.StringToUTF16Ptr("设置系统时间")
 	hCursor, _, _ := pLoadCursorW.Call(0, IDC_ARROW)
 

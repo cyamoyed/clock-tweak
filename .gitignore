@@ -1,6 +1,6 @@
 # Go build output
 *.exe
-SetSystemTime
+clock-tweak
 *.syso
 
 # Go module cache

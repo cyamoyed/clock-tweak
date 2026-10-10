@@ -1,3 +1,3 @@
-module set-system-time
+module clock-tweak
 
 go 1.21

@@ -1,75 +1,68 @@
-# SetSystemTime (Go 版本)
+# clock-tweak
 
-Windows 系统时间修改工具，使用纯 Go + Win32 API 实现，无外部依赖。
+Windows 系统时间修改工具,纯 Go + Win32 API 实现,单文件 EXE(约 2.5MB),零外部依赖。
 
-## 特性
+## 项目背景
 
-- ✅ 纯 Go 实现，无外部依赖
-- ✅ 原生 Win32 控件（日期选择器、按钮）
-- ✅ 通过 Windows API 直接设置系统时间
-- ✅ 支持 NTP 时间同步恢复
-- ✅ 编译后仅 ~2.5MB
-- ✅ 需要管理员权限运行
+一些软件的证书、license 存在有效期,过期后需要把系统时间改回有效期内才能继续使用。手动修改操作复杂麻烦,改完还要记得恢复对时。clock-tweak 把这套流程做成一键操作:点「设置日期」自动修改系统时间并处理好时间同步相关设置,用完点「恢复时间」一键恢复网络对时。
+
+## 功能特性
+
+- 修改系统日期,自动停用 NTP 同步与 w32time 服务,程序退出、系统重启后假时间依然保持
+- 一键恢复:还原全部同步配置并立即 NTP 网络对时
+- 纯 Go 实现,仅调用 Win32 API,无 CGO、无第三方依赖
+- 原生 Win32 控件(日期选择器、按钮、日志区),按系统 DPI 自动缩放
+- 自动请求管理员权限,双击即可使用
+- 耗时操作后台执行,界面不卡顿,带时间戳日志
+
+## 使用方法
+
+1. 双击运行 `clock-tweak.exe`,在 UAC 弹窗中确认
+2. 在日期选择器中选择目标日期
+3. 点击 **「设置日期」**,修改系统日期(时分秒保持不变)
+4. 需要恢复时点击 **「恢复时间」**,还原同步配置并立即对时
+
+> 假时间会一直保持,直到显式点击「恢复时间」。
 
 ## 构建
 
-```bash
-# 直接编译
-go build -o SetSystemTime.exe .
+要求:Windows + Go 1.21+。
 
-# 或使用构建脚本
+一键构建(安装 go-winres → 按 `winres\winres.json` 生成资源,嵌入 `requireAdministrator` 清单、版本信息、DPI 声明 → 编译为无控制台的单文件 EXE):
+
+```bat
 build.bat
 ```
 
-## 使用
-
-1. **以管理员身份运行** `SetSystemTime.exe`
-2. 在日期选择器中选择目标日期
-3. 点击 **「设置日期」** 按钮修改系统时间
-4. 点击 **「恢复时间」** 按钮同步 NTP 网络时间
-
-## 时间为什么会被“改回去”（已修复）
-
-设置时间后系统会在几秒到几分钟内把时间拉回真实值，原因有三层，程序已逐一处理：
-
-1. **安全时间种子（Secure Time Seeding）**：Windows 会从 TLS 握手中缓存"可信时间"，w32time 服务一旦启动，即使 NTP 已禁用，也会立刻用它强行纠正大偏差。
-2. **w32time 是按需启动服务**：停掉后任何系统组件都能再次把它拉起。
-3. **旧版程序退出时会自动恢复并启动 w32time**，导致关闭程序时间即回跳。
-
-现在「设置日期」会：关闭 NTP 客户端（`NtpClient\Enabled=0`）+ 关闭安全时间种子（`UtilizeSslTimeData=0`）+ 将 w32time 服务设为**禁用**（`start= disabled`，阻止任何组件拉起）+ 确认服务已停止后才改时间。设置成功后**程序退出、重启系统都会保持假时间**。「恢复时间」将以上全部恢复（含 `start= demand`）并立即 NTP 同步。
-
-## 嵌入管理员权限请求（可选）
-
-默认需要右键「以管理员身份运行」。如需双击自动请求管理员权限：
+或直接编译(无版本信息等资源):
 
 ```bash
-# 安装 go-winres 工具
-go install github.com/tc-hib/go-winres@latest
-
-# 生成资源文件
-go-winres make --manifest app.manifest
-
-# 重新编译
-go build -ldflags="-s -w -H windowsgui" -o SetSystemTime.exe .
+go build -ldflags="-s -w -H windowsgui" -o clock-tweak.exe .
 ```
 
 ## 技术实现
 
 | 组件 | 实现方式 |
 |------|---------|
-| GUI | Win32 API (user32.dll) |
-| 日期选择器 | SysDateTimePick32 控件 |
-| 设置时间 | SetSystemTime API (kernel32.dll) |
-| 停用同步 | NtpClient\Enabled=0、UtilizeSslTimeData=0、w32time start=disabled |
-| 恢复时间 | w32tm /resync 命令 |
-| 字体 | Microsoft YaHei |
+| GUI | Win32 API(user32.dll / gdi32.dll),微软雅黑字体 |
+| 日期选择器 | `SysDateTimePick32` 原生控件 |
+| 设置时间 | `SetSystemTime`(kernel32.dll),改前先禁用 NtpClient、安全时间种子与 w32time 服务 |
+| 恢复时间 | 还原同步配置后执行 `w32tm /resync /force` |
+| 同步控制 | `reg.exe` 写注册表 + `sc` / `net` 控制 w32time 服务 |
+| 提权 | 令牌检测 + `ShellExecuteW "runas"` 自我重启;构建脚本另嵌入 `requireAdministrator` 清单 |
+| UI 线程模型 | 消息循环 + goroutine 执行耗时命令,`WM_APP` 消息回传结果 |
 
-## 与 Electron 版本对比
+## 项目结构
 
-| 维度 | Electron 版 | Go 版 |
-|------|------------|-------|
-| 包体积 | ~80MB | ~2.5MB |
-| 内存占用 | ~100MB | ~5MB |
-| 启动速度 | ~2s | 即时 |
-| 依赖 | Node.js + Chromium | 无 |
-| 外观 | 自定义 HTML/CSS | Windows 原生控件 |
+```
+├── main.go            # 全部实现:GUI、提权、时间同步控制、NTP 恢复
+├── build.bat          # 一键构建脚本
+├── winres/winres.json # EXE 资源清单(UAC 级别、版本信息、DPI 声明)
+└── go.mod
+```
+
+## 注意事项
+
+- 仅支持 Windows,需管理员权限
+- 假时间生效期间系统时间同步被禁用,HTTPS 证书校验、软件许可证等可能受影响,建议用完及时「恢复时间」
+- 「恢复时间」需要网络能访问 NTP 时间服务器
